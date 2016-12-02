@@ -74,6 +74,9 @@
 		, cssModelLabel = $('#js-css-mode-label')
 		, jsModelLabel = $('#js-js-mode-label')
 		, titleInput = $('#js-title-input')
+		, addLibrarySelect = $('#js-add-library-select')
+		, addLibraryBtn = $('#js-add-library-btn')
+		, addLibraryModal = $('#js-add-library-modal')
 		;
 
 	editur.cm = {};
@@ -262,6 +265,7 @@
 			html: '',
 			css: '',
 			js: '',
+			externalLibs: { js: $('#js-external-js-list').value, css:  $('#js-external-css-list').value },
 			layoutMode: currentLayoutMode
 		};
 		alertsService.add('New item created');
@@ -482,10 +486,18 @@
 		});
 	}
 	function createPreviewFile(html, css, js) {
+		var externalJs = $('#js-external-js-list').value.split('\n').reduce(function (html, url) {
+			return html + (url ? '\n<script src="' + url + '"></script>' : '');
+		}, '');
+		var externalCss = $('#js-external-css-list').value.split('\n').reduce(function (html, url) {
+			return html + (url ? '\n<link rel="stylesheet" href="' + url + '"></link>' : '');
+		}, '');
 		var contents = '<html>\n<head>\n'
+			+ externalCss + '\n'
 			+ '<style>\n' + css + '\n</style>\n'
 			+ '</head>\n'
-			+ '<body>\n' + html + '\n<script>\n' + js + '\n//# sourceURL=userscript.js</script></body>\n</html>';
+			+ '<body>\n' + html + '\n'
+			+ externalJs + '\n<script>\n' + js + '\n//# sourceURL=userscript.js</script></body>\n</html>';
 
 		var fileWritten = false;
 
@@ -595,6 +607,21 @@
 	});
 	Inlet(editur.cm.js);
 
+	/*var app = new Vue({
+		el: '#app',
+		data: {
+			message: 'Hello Vue!',
+			externalJs: [],
+			externalCss: [],
+		},
+		mounted: function () {
+			init();
+		},
+		methods: {
+
+		}
+	});*/
+
 	function init () {
 		var lastCode;
 
@@ -607,6 +634,10 @@
 		utils.onButtonClick(helpBtn, function () {
 			helpModal.classList.toggle('is-modal-visible');
 			trackEvent('ui', 'helpButtonClick');
+		});
+		utils.onButtonClick(addLibraryBtn, function () {
+			addLibraryModal.classList.toggle('is-modal-visible');
+			trackEvent('ui', 'addLibraryButtonClick');
 		});
 
 		notificationsBtn.addEventListener('click', function () {
@@ -729,6 +760,7 @@
 			if (typeof e.target.className === 'string' && e.target.className.indexOf('modal-overlay') !== -1) {
 				helpModal.classList.remove('is-modal-visible');
 				notificationsModal.classList.remove('is-modal-visible');
+				addLibraryModal.classList.remove('is-modal-visible');
 				toggleSavedItemsPane(false);
 			}
 		});
@@ -749,6 +781,23 @@
 			trackEvent('ui', 'settingsBtnClick');
 		});
 
+		// Initialize add library select box
+		var libOptions = window.jsLibs.reduce(function (html, lib) {
+			return html + '<option data-type="' + lib.type + '" value="' + lib.url + '">' + lib.label + '</option>';
+			// console.log(html, lib)
+		}, '');
+		addLibrarySelect.children[1].innerHTML = libOptions;
+		libOptions = window.cssLibs.reduce(function (html, lib) {
+			return html + '<option data-type="' + lib.type + '" value="' + lib.url + '">' + lib.label + '</option>';
+			// console.log(html, lib)
+		}, '');
+		addLibrarySelect.children[2].innerHTML = libOptions;
+		addLibrarySelect.addEventListener('change', function onSelectChange(e) {
+			var target = e.target;
+			$('#js-external-' + target.selectedOptions[0].dataset.type + '-list').value += target.value + '\n';
+		});
+
+		// TODO: move to split.js ondrag listeners
 		window.addEventListener('mousedown', function() {
 			document.body.classList.add('is-dragging');
 		});
