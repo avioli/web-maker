@@ -574,34 +574,54 @@ settingsBtn, onboardModal, notificationsBtn */
 			trackEvent('fn', 'usingPreview');
 		}
 
-		function errorHandler() { utils.log(arguments); }
+		if (!window.webkitRequestFileSystem) {
+			return frameWrite(contents);
+		}
 
-		window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024 * 5, function(fs){
-			fs.root.getFile('preview.html', { create: true }, function(fileEntry) {
-				fileEntry.createWriter(function(fileWriter) {
-					function onWriteComplete() {
-						if (fileWritten) {
-							frame.src = 'filesystem:chrome-extension://'
-							+ chrome.i18n.getMessage('@@extension_id') + '/temporary/' + 'preview.html';
+		return new Promise(function (resolve, reject) {
+			window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024 * 5, function(fs){
+				fs.root.getFile('preview.html', { create: true }, function(fileEntry) {
+					fileEntry.createWriter(function(fileWriter) {
+						function onWriteComplete() {
+							if (fileWritten) {
+								frame.src = 'filesystem:chrome-extension://'
+								+ chrome.i18n.getMessage('@@extension_id') + '/temporary/' + 'preview.html';
+								resolve();
+							}
+							else {
+								fileWritten = true;
+								// Set the write pointer to starting of file
+								fileWriter.seek(0);
+								fileWriter.write(blob);
+							}
 						}
-						else {
-							fileWritten = true;
-							// Set the write pointer to starting of file
-							fileWriter.seek(0);
-							fileWriter.write(blob);
-						}
-					}
-					fileWriter.onwriteend = onWriteComplete;
-					// Empty the file contents
-					fileWriter.truncate(0)
-				}, errorHandler);
-			}, errorHandler);
-		}, errorHandler);
+						fileWriter.onwriteend = onWriteComplete;
+						// Empty the file contents
+						fileWriter.truncate(0)
+					}, reject);
+				}, reject);
+			}, function (error) {
+				resolve(frameWrite(contents));
+			});
+		})
+	}
+
+	function frameWrite (contents) {
+		return new Promise(function (resolve, reject) {
+			try {
+				frame.contentWindow.document.open();
+				frame.contentWindow.document.write(contents);
+				frame.contentWindow.document.close();
+				resolve();
+			} catch (error) {
+				reject(error);
+			}
+		});
 	}
 
 	scope.setPreviewContent = function () {
 		return Promise.all([computeHtml(), computeCss(), computeJs()]).then(function (result) {
-			createPreviewFile(result[0], result[1], result[2]);
+			return createPreviewFile(result[0], result[1], result[2]);
 		});
 	};
 
